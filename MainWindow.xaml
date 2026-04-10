@@ -1,0 +1,87 @@
+<Window x:Class="WpfApp1.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:helix="http://helix-toolkit.org/wpf"
+        Title="SHIELD-AI | HEAD TRACKING MODE" Height="950" Width="1600" 
+        Background="#010204" WindowStyle="None" WindowState="Maximized">
+
+    <Grid>
+        <Border Background="#05080A" Opacity="0.95"/>
+        <Grid Margin="15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="420"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" BorderBrush="#1A2026" BorderThickness="1" CornerRadius="12" Background="#030406">
+                <Grid>
+                    <helix:HelixViewport3D x:Name="MainViewport" ZoomExtentsWhenLoaded="True" ShowCoordinateSystem="False">
+                        <helix:DefaultLights/>
+                        <helix:GridLinesVisual3D Width="1000" Length="1000" MinorDistance="10" MajorDistance="50" Fill="#0D1117"/>
+                        <helix:SphereVisual3D x:Name="DroneMarker" Radius="5" Fill="#00FF41" Center="0,0,10"/>
+                        <helix:CubeVisual3D x:Name="RestrictedZone3D" SideLength="60" Fill="#44FF0000" Center="0,0,30"/>
+                    </helix:HelixViewport3D>
+
+                    <Border VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="20" Padding="15" Background="#EE080A0C" CornerRadius="8">
+                        <StackPanel>
+                            <TextBlock Text="HEAD DETECTION ZONE" Foreground="#FF4444" FontSize="11" FontWeight="Bold" Margin="0,0,0 ,10"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider x:Name="SldZoneX" Minimum="-200" Maximum="200" Value="0" Width="120" ValueChanged="UpdateZoneLive"/>
+                                <Slider x:Name="SldZoneY" Minimum="-200" Maximum="200" Value="0" Width="120" Margin="10,0,0,0" ValueChanged="UpdateZoneLive"/>
+                            </StackPanel>
+                            <Slider x:Name="SldZoneSize" Minimum="20" Maximum="400" Value="80" Width="250" Margin="0,10,0,0" ValueChanged="UpdateZoneLive"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Column="1" Margin="15,0,0,0">
+                <Border BorderBrush="#1A2026" BorderThickness="1" Height="320" Background="Black" CornerRadius="5">
+                    <Grid>
+                        <Image x:Name="CameraFeed" Stretch="Uniform"/>
+                        <Canvas IsHitTestVisible="False">
+                            <StackPanel Canvas.Top="10" Canvas.Left="10" Orientation="Horizontal">
+                                <Ellipse Width="10" Height="10" Fill="Red"/>
+                                <TextBlock Text=" HEAD-SCAN LIVE" Foreground="White" FontWeight="Bold" FontSize="12"/>
+                            </StackPanel>
+                        </Canvas>
+                        <Border Background="#CCFF0000" x:Name="BrdAlert" Visibility="Hidden" VerticalAlignment="Center" HorizontalAlignment="Center" Padding="20,10">
+                            <TextBlock Text="HUMAN HEAD DETECTED IN ZONE" Foreground="White" FontWeight="ExtraBold" FontSize="14"/>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <UniformGrid Columns="2" Rows="3" Height="220" Margin="0,15">
+                    <Border Background="#0D1117" Margin="2" BorderBrush="#1A2026" BorderThickness="1">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="HEAD COUNT" Foreground="#8B949E" FontSize="9" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="TxtLiveCount" Text="00" Foreground="#00FF41" FontSize="28" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#0D1117" Margin="2" BorderBrush="#0088FF" BorderThickness="2">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="AUDIO LEVEL (dB)" Foreground="#0088FF" FontSize="9" HorizontalAlignment="Center" FontWeight="Bold"/>
+                            <TextBlock x:Name="TxtDecibel" Text="40" Foreground="#00DFFF" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
+                            <ProgressBar x:Name="PbAudio" Value="40" Maximum="120" Height="4" Margin="10,5" Foreground="#0088FF" Background="#111"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#0D1117" Margin="2" BorderBrush="#1A2026" BorderThickness="1">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="BIO-CONFIDENCE" Foreground="#8B949E" FontSize="9" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="TxtConfidence" Text="0.0%" Foreground="#00FF41" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#0D1117" Margin="2" BorderBrush="#1A2026" BorderThickness="1">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="VERIFICATION" Foreground="#8B949E" FontSize="9" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="TxtThreatLevel" Text="SCANNING" Foreground="#00FF41" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+
+                <ListBox x:Name="ThreatsLog" Background="#080A0C" BorderBrush="#111" Foreground="#58A6FF" Height="220" FontSize="9" FontFamily="Consolas"/>
+                <Button Content="STOP SCAN" Background="#220000" Foreground="Red" Click="Button_Click" Height="45" Margin="0,15,0,0" FontWeight="Bold"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
