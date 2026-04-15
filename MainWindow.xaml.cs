@@ -7,6 +7,7 @@ using System.Windows.Interop;
 using System.Drawing;
 using System.Net.Sockets;
 using System.Text;
+using System.IO;
 using Emgu.CV;
 using Emgu.CV.Structure;
 using Emgu.CV.CvEnum;
@@ -33,26 +34,35 @@ namespace WpfApp1
             {
                 _capture = new VideoCapture(0);
 
-                // تحميل ملف تدريب اكتشاف الرأس
-                _headDetector = new CascadeClassifier("haarcascade_frontalface_default.xml");
+                // اسم الملف المستهدف
+                string fileName = "haarcascade_frontalface_default.xml";
+
+                // البحث في مجلد التشغيل الحالي
+                string path1 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, fileName);
+                // البحث في المجلد الأب (للاحتياط)
+                string path2 = Path.Combine(Directory.GetParent(AppDomain.CurrentDomain.BaseDirectory).FullName, fileName);
+
+                string finalPath = "";
+
+                if (File.Exists(path1)) finalPath = path1;
+                else if (File.Exists(path2)) finalPath = path2;
+
+                if (!string.IsNullOrEmpty(finalPath))
+                {
+                    _headDetector = new CascadeClassifier(finalPath);
+                    Log("✅ تم تحميل الملف من: " + finalPath);
+                }
+                else
+                {
+                    Log("❌ لم أجد الملف. أنا أبحث هنا: " + AppDomain.CurrentDomain.BaseDirectory);
+                    Log("تأكد أن الملف ليس haarcascade_frontalface_default.xml.xml");
+                }
 
                 System.Windows.Media.CompositionTarget.Rendering += (s, e) => ProcessLoop();
-
-                Log("تم تفعيل نظام الدرع الذكي.. جاهز للرصد");
-                Log("جاري البحث عن ملامح بشرية في الموقع...");
             }
             catch (Exception ex)
             {
-                Log("فشل في تشغيل النظام: " + ex.Message);
-            }
-        }
-
-        private void UpdateZoneLive(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (RestrictedZone3D != null)
-            {
-                RestrictedZone3D.Center = new Point3D(SldZoneX.Value, SldZoneY.Value, SldZoneSize.Value / 2);
-                RestrictedZone3D.SideLength = SldZoneSize.Value;
+                Log("⚠️ فشل: " + ex.Message);
             }
         }
 
@@ -60,9 +70,11 @@ namespace WpfApp1
         {
             if (_capture == null || _headDetector == null) return;
 
-            using (Mat frame = _capture.QueryFrame())
+            using (Mat frame = new Mat())
             {
-                if (frame == null) return;
+                _capture.Read(frame);
+                if (frame.IsEmpty) return;
+
                 using (Mat smallFrame = new Mat())
                 {
                     CvInvoke.Resize(frame, smallFrame, new System.Drawing.Size(640, 480));
@@ -73,7 +85,6 @@ namespace WpfApp1
                         CvInvoke.CvtColor(smallFrame, gray, ColorConversion.Bgr2Gray);
                         CvInvoke.EqualizeHist(gray, gray);
 
-                        // اكتشاف الرؤوس بوضوح
                         System.Drawing.Rectangle[] heads = _headDetector.DetectMultiScale(gray, 1.1, 5, new System.Drawing.Size(30, 30));
 
                         bool alert = false;
@@ -83,39 +94,17 @@ namespace WpfApp1
                             if (isInside) alert = true;
 
                             MCvScalar color = isInside ? new MCvScalar(0, 0, 255) : new MCvScalar(0, 255, 65);
-
-                            // رسم دائرة تحديد الرأس
-                            System.Drawing.Point center = new System.Drawing.Point(head.X + head.Width / 2, head.Y + head.Height / 2);
-                            int radius = (int)(head.Width * 0.6);
-                            CvInvoke.Circle(smallFrame, center, radius, color, 2);
-
-                            // نص الكاميرا بالعربي
-                            string label = isInside ? "اختراق: هدف داخل المنطقة" : "تم رصد: رأس إنسان";
-                            CvInvoke.PutText(smallFrame, label, new System.Drawing.Point(head.X, head.Y - 15),
-                                FontFace.HersheySimplex, 0.5, color, 1);
-
-                            if (isInside) Log("! تحذير: اختراق داخل المنطقة المحظورة");
-                            else if (_rng.Next(0, 50) == 1) Log("تم رصد هدف بشري.. جاري التتبع");
+                            CvInvoke.Rectangle(smallFrame, head, color, 2);
 
                             SyncTo3D(head, smallFrame.Width, smallFrame.Height);
                         }
 
-                        // رسم منطقة الزون
                         CvInvoke.Rectangle(smallFrame, _currentRestrictedZone, new MCvScalar(0, 0, 255), 2);
 
                         Dispatcher.Invoke(() => {
                             CameraFeed.Source = ToBitmapSource(smallFrame);
                             TxtLiveCount.Text = heads.Length.ToString("D2");
                             BrdAlert.Visibility = alert ? Visibility.Visible : Visibility.Hidden;
-
-                            // الديسيبل الأزرق
-                            int dB = heads.Length > 0 ? _rng.Next(75, 95) : _rng.Next(35, 45);
-                            TxtDecibel.Text = dB.ToString();
-                            PbAudio.Value = dB;
-
-                            if (dB > 90) Log("رصد ضجيج عالي في الموقع (مريب)");
-
-                            TxtConfidence.Text = heads.Length > 0 ? (98.2 + _rng.NextDouble() * 1.5).ToString("F1") + "%" : "0.0%";
                             TxtThreatLevel.Text = alert ? "اختراق أمني" : "الوضع آمن";
                             TxtThreatLevel.Foreground = alert ? System.Windows.Media.Brushes.Red : System.Windows.Media.Brushes.SpringGreen;
                         });
@@ -129,8 +118,7 @@ namespace WpfApp1
             Dispatcher.Invoke(() => {
                 double x = (SldZoneX.Value + 200) / 400.0 * w;
                 double y = (200 - SldZoneY.Value) / 400.0 * h;
-                double sz = SldZoneSize.Value;
-                _currentRestrictedZone = new System.Drawing.Rectangle((int)(x - sz / 2), (int)(y - sz / 2), (int)sz, (int)sz);
+                _currentRestrictedZone = new System.Drawing.Rectangle((int)(x - SldZoneSize.Value / 2), (int)(y - SldZoneSize.Value / 2), (int)SldZoneSize.Value, (int)SldZoneSize.Value);
             });
         }
 
@@ -142,31 +130,25 @@ namespace WpfApp1
             {
                 byte[] data = Encoding.UTF8.GetBytes($"{x},{z}");
                 _udpClient.Send(data, data.Length, "127.0.0.1", 5005);
-                Dispatcher.Invoke(() => { DroneMarker.Center = new Point3D(x, -z, 15); });
+                if (DroneMarker != null) Dispatcher.Invoke(() => DroneMarker.Center = new Point3D(x, -z, 15));
             }
             catch { }
         }
 
-        // دالة السجل بالعربي
         private void Log(string m) => Dispatcher.Invoke(() => ThreatsLog.Items.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {m}"));
 
-        private void Button_Click(object sender, RoutedEventArgs e)
-        {
-            Log("جاري إغلاق الأنظمة.. مع السلامة");
-            Application.Current.Shutdown();
-        }
+        private void Button_Click(object sender, RoutedEventArgs e) => System.Windows.Application.Current.Shutdown();
 
         public static BitmapSource ToBitmapSource(Mat source)
         {
-            using (var temp = source.ToImage<Bgr, byte>())
-            using (Bitmap bmp = temp.ToBitmap())
+            using (Bitmap bmp = source.ToBitmap())
             {
                 IntPtr h = bmp.GetHbitmap();
-                BitmapSource res = Imaging.CreateBitmapSourceFromHBitmap(h, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                DeleteObject(h);
-                return res;
+                try { return Imaging.CreateBitmapSourceFromHBitmap(h, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions()); }
+                finally { DeleteObject(h); }
             }
         }
         [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr h);
+        private void UpdateZoneLive(object sender, RoutedPropertyChangedEventArgs<double> e) { }
     }
 }
